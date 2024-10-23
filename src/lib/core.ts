@@ -1,7 +1,4 @@
-import got from './got';
-import NodeCache from 'node-cache';
-import * as jose from 'jose';
-import { GetKeyFunction } from 'jose/dist/types/types';
+import { request } from './fetch';
 import { TApp } from '../types';
 
 type WellKnownConfig = {
@@ -29,50 +26,30 @@ type TAppResp = {
   app: TApp;
 };
 
-const cache = new NodeCache({ stdTTL: 3600 });
+const cache: Record<string, any> = {};
 
 export async function fetchRowndWellKnownConfig(
   apiUrl: string
 ): Promise<WellKnownConfig> {
-  if (cache.has('oauth-config')) {
-    return cache.get('oauth-config') as WellKnownConfig;
+  if (cache['oauth-config']) {
+    return cache['oauth-config'];
   }
 
-  let resp: WellKnownConfig = await got
-    .get(`${apiUrl}/hub/auth/.well-known/oauth-authorization-server`)
-    .json();
-  cache.set('oauth-config', resp);
+  const resp = await request(`${apiUrl}/hub/auth/.well-known/oauth-authorization-server`);
+  cache['oauth-config'] = resp;
 
   return resp;
-}
-
-export async function fetchRowndJwks(
-  jwksUrl: string
-): Promise<GetKeyFunction<jose.JWSHeaderParameters, jose.FlattenedJWSInput>> {
-  if (cache.has('jwks')) {
-    return jose.createLocalJWKSet(cache.get('jwks') as jose.JSONWebKeySet);
-  }
-
-  let resp: jose.JSONWebKeySet = await got.get(jwksUrl).json();
-  cache.set('jwks', resp);
-
-  return jose.createLocalJWKSet(resp);
 }
 
 export async function fetchAppConfig(
   apiUrl: string,
   appKey: string
 ): Promise<TApp> {
-  let resp: TAppResp = await got
-    .get(`${apiUrl}/hub/app-config`, {
-      headers: {
-        'x-rownd-app-key': appKey,
-      },
-      retry: {
-        limit: Infinity, // retry forever so we hopefully don't leave the system in a bad state permanently
-      },
-    })
-    .json();
+  const resp: TAppResp = await request(`${apiUrl}/hub/app-config`, {
+    headers: {
+      'x-rownd-app-key': appKey,
+    },
+  });
 
   return resp.app;
 }

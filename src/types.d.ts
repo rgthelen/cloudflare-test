@@ -1,3 +1,5 @@
+import { JWTPayload } from 'jose';
+
 export type TConfig = {
   api_url: string;
   app_key?: string;
@@ -8,16 +10,11 @@ export type TConfig = {
 
 export interface IRowndClient {
   validateToken: (token: string) => Promise<TTokenValidationPayload>;
-  fetchUserInfo: (token: FetchUserInfoOpts) => Promise<TUserInfo>;
+  fetchUserInfo: (opts: FetchUserInfoOpts) => Promise<TUserInfo>;
   createOrUpdateUser: (user: RowndUser) => Promise<RowndUser>;
-  deleteUser: (userId: String) => Promise<void>;
-  createSmartLink: (opts: TCreateSmartLinkOpts) => Promise<TSmartLink>;
-  express: IRowndExpressClient;
+  deleteUser: (userId: string) => Promise<void>;
+  createSmartLink: (opts: CreateSmartLinkOpts) => Promise<SmartLink>;
   appConfig: Promise<TApp> | undefined;
-}
-
-interface IRowndExpressClient {
-  authenticate: (opts: AuthenticateOpts) => void;
 }
 
 type TTokenValidationPayload = {
@@ -48,7 +45,7 @@ type FetchUserInfoOpts = {
   app_id?: string;
 };
 
-interface CreateSmartLinkOpts {
+export interface CreateSmartLinkOpts {
   email?: string;
   phone?: string;
   redirect_url: string;
@@ -62,5 +59,9 @@ type SmartLink = {
 
 type RowndUser = {
   id: string;
+  data: Record<string, any>;
+};
+
+export type TUserInfo = {
   data: Record<string, any>;
 };

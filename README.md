@@ -1,177 +1,107 @@
-# Rownd bindings for Node.js
+# Rownd Cloudflare SDK
 
-Use this library to integrate Rownd into your Node.js application. Convenience wrappers are provided
-for common server implementations.
+Use this library to integrate Rownd into your Cloudflare Workers application. This SDK provides methods to validate Rownd JWT tokens, fetch and manipulate user data, and generate sign-in links, all within a Cloudflare Worker environment.
 
 ## Installation
 
 ```bash
-npm i @rownd/node
+npm install @rownd/cloudflare
 ```
-
-## Supported frameworks
-
-- [Express](#express)
-
-Don't see your framework of choice? Open an issue and request it, or contribute it via pull request!
 
 ## Usage
 
-### Express
+### Basic Example
 
-An `authenticate` function is provided for use as Express middleware.
-It takes the usual `req, res, next` arguments and will call `next()` if authentication
-succeeds or `next(err)` if it fails.
+```javascript
+import { createInstance } from '@rownd/cloudflare';
 
-Upon successful authentication, the request will be augmented with a `tokenInfo` property containing
-details about the authenticated token. `req.isAuthenticated` will also be set to `true`.
-
-Each user's information is cached in memory for a short period of time to speed up subsequent requests.
-
-See the [Express example](/examples/express/server.js) for a working implementation.
-
-Here's an example protecting one route:
-```js
-const { rownd } = require('@rownd/node');
-const { authenticate } = rownd.express;
-
-app.get('/protected-route', authenticate(), (req, res) => {
-    res.send({
-        message: 'You are authenticated!',
-        tokenObj: req.tokenObj,
-    });
-});
-```
-
-Here's an example protecting multiple routes on a certain path prefix:
-```js
-const { rownd } = require('@rownd/node');
-const { authenticate } = rownd.express;
-
-app.use('/protected-path', authenticate());
-```
-
-The `authenticate()` function accepts an optional `options` object containing the following properties:
-- `fetchUserInfo: boolean (default: false)` - If `true`, the user's data will be fetched from the Rownd API and annotated on the request object as `req.user`. When present, it will contain a set of key/value pairs that match your application's schema. The user's data will be cached for a short period of time to speed up subsequent requests.
-- `errOnInvalidToken: boolean (default: true)` - When `true`, the an error will be passed to `next(err)` if the token fails to validate. When `false`, the token will still be validated, but `next()` will be called without an error. `req.isAuthenticated` will be `false` and `req.tokenInfo` will be `null`.
-
-### Vanilla JS
-
-The SDK exposes the following methods to help you validate user tokens, create or update user records, generate sign-in links, and so on.
-
-Here's a basic usage example:
-
-```js
-const Rownd = require("@rownd/node");
-
-const rownd = Rownd.createInstance({
+const rownd = createInstance({
   app_key: 'YOUR_ROWND_APP_KEY',
-  app_secret: 'YOUR_ROWND_APP_SECRET'
+  app_secret: 'YOUR_ROWND_APP_SECRET',
 });
 
-try {
-  // Receive a Rownd bearer token within your request headers (e.g., Authorization: Bearer <token>)
-  let token = headers['authorization'].replace(/^bearer /i, '');
+addEventListener('fetch', event => {
+  event.respondWith(handleRequest(event.request));
+});
 
-  let tokenInfo = await rownd.validateToken(token);
-  // Available properties: decoded_token, user_id, access_token (the same token you passed into `validateToken()`)
+async function handleRequest(request) {
+  try {
+    const authorizationHeader = request.headers.get('Authorization');
+    if (!authorizationHeader) throw new Error('No authorization header');
 
-  // If you want to grab the user's profile from Rownd
-  let userInfo = await rownd.fetchUserInfo({ user_id: tokenInfo.user_id });
+    const token = authorizationHeader.replace(/^Bearer\s+/i, '');
+    const tokenInfo = await rownd.validateToken(token);
 
-  console.log(userInfo.data); // Print user profile to console
-} catch (err) {
-  // Something went wrong--probably the token was invalid, expired, etc.
-}
+    // Fetch user info
+    const userInfo = await rownd.fetchUserInfo({ user_id: tokenInfo.user_id });
 
-```
-
-## API reference
-
-Most methods return a Promise that will resolve with the result of the call or will reject (throw) if an error occurs, so you should be prepared to handle any errors.
-
-### Rownd.createInstance(opts)
-
-Creates a new instance of the Rownd client. It requires the following object properties as a single argument:
-- `app_key` - Your Rownd application key.
-- `app_secret` - Your Rownd application secret.
-
-Optionally, you can also pass in the following properties:
-- `timeout` - The number of milliseconds to wait before timing out a request. Defaults to 10 seconds. If you're on a slow network and see any "Request timed out" errors, try increasing this value.
-
-Example:
-
-```js
-const rownd = Rownd.createInstance({
-    app_key: 'YOUR_ROWND_APP_KEY',
-    app_secret: 'YOUR_ROWND_APP_SECRET'
-})
-```
-
-Once you have an instance, you can use it to call various Rownd APIs or leverage supported frameworks.
-
-### instance.express
-Provides convenience handlers for the Express framework. See the usage section on Express for more information on how to use it.
-
-### instance.validateToken(token: string): Promise<TTokenValidationPayload>
-Validates a Rownd bearer token. Returns a promise that resolves to a token validation payload.
-
-In many cases, you'll retrieve a token from your REST API's `Authorization` header. Be sure to strip off the `Bearer ` portion of the header and just pass the raw token to this method.
-
-If the validation is successful, the resulting object will look approximately like this:
-
-```js
-{
-    decoded_token: {
-        "jti": "345b7a0f-1ab4-482b-99e7-4466b1cac0ad",
-        "aud": [
-            "app:290167281732813315",
-        ],
-        "sub": "rownd|61f3053251f2420069455976",
-        "iat": 1660056446,
-        "https://auth.rownd.io/app_user_id": "71f6ceeb-ee0a-4437-9b44-e6229defbab8",
-        "https://auth.rownd.io/is_verified_user": true,
-        "iss": "https://api.dev.rownd.io",
-        "exp": 1660060046
-    },
-    user_id: "71f6ceeb-ee0a-4437-9b44-e6229defbab8",
-    access_token: "eyJhbGciOiJ....EluFfu9Dg",
+    return new Response(JSON.stringify(userInfo.data), { status: 200 });
+  } catch (err) {
+    return new Response(err.message, { status: 401 });
+  }
 }
 ```
 
-### instance.fetchUserInfo(opts: TFetchUserInfoOpts): Promise<TUserInfo>
-Retrieves a user's profile from Rownd containing fields that match your Rownd application's schema.
+## API Reference
 
-### instance.createOrUpdateUser(user: TUser): Promise<void>
-Creates or updates a user's profile in Rownd. The user object must contain an `id` property. If the user already exists, the existing profile will be updated. If the user does not exist, a new user/profile will be created.
+### `createInstance(config)`
 
-Example:
+Creates a new instance of the Rownd client.
 
-```js
-let user = await instance.createOrUpdateUser({
-    id: '71f6ceeb-ee0a-4437-9b44-e6229defbab8',
-    data: {
-        first_name: 'Juliet',
-        email: 'juliet@rose.com'
-    }
-})
-```
+- **Parameters:**
+  - `config` (Object): Configuration object.
+    - `app_key` (string): Your Rownd application key.
+    - `app_secret` (string): Your Rownd application secret.
+    - `timeout` (number, optional): Timeout for API requests in milliseconds.
 
-### instance.deleteUser(userId: String): Promise<void>
-Deletes a user and all associated data from Rownd.
+### `rownd.validateToken(token)`
 
-### instance.createSignInLink(opts: CreateSignInLinkOpts): Promise<string>
+Validates a Rownd JWT token.
 
-Creates a sign-in "magic" link that will automatically sign in a user based on their email address, phone number, etc when they click the link.
+- **Parameters:**
+  - `token` (string): The JWT token to validate.
+- **Returns:**
+  - A promise that resolves to an object containing the decoded token, user ID, and access token.
 
-Example:
+### `rownd.fetchUserInfo(opts)`
 
-```js
-let signInLink = await instance.createSignInLink({
-    redirect_url: 'https://example.com/dashboard',
-    email: 'juliet@rose.com',
-    data: {
-        first_name: 'Juliet',
-    }
-});
-```
+Fetches user information from Rownd.
+
+- **Parameters:**
+  - `opts` (Object):
+    - `user_id` (string): The user's ID.
+- **Returns:**
+  - A promise that resolves to the user's data.
+
+### `rownd.createOrUpdateUser(user)`
+
+Creates or updates a user's data in Rownd.
+
+- **Parameters:**
+  - `user` (Object):
+    - `id` (string): The user's ID.
+    - `data` (Object): The user's data.
+- **Returns:**
+  - A promise that resolves when the operation is complete.
+
+### `rownd.deleteUser(userId)`
+
+Deletes a user from Rownd.
+
+- **Parameters:**
+  - `userId` (string): The user's ID.
+- **Returns:**
+  - A promise that resolves when the user is deleted.
+
+### `rownd.createSmartLink(opts)`
+
+Creates a magic sign-in link for a user.
+
+- **Parameters:**
+  - `opts` (Object):
+    - `email` (string, optional): User's email.
+    - `phone` (string, optional): User's phone number.
+    - `redirect_url` (string): URL to redirect after sign-in.
+    - `data` (Object, optional): Additional user data.
+- **Returns:**
+  - A promise that resolves to the smart link object.

@@ -1,29 +1,29 @@
 import { WrappedError } from '../errors';
 import { CreateSmartLinkOpts, SmartLink, TConfig } from '../types';
-import got from './got';
+import { request } from './fetch';
 
 export async function createSmartLink(
   { email, phone, redirect_url, data }: CreateSmartLinkOpts,
   config: TConfig
 ): Promise<SmartLink> {
   try {
-    let resp: SmartLink = await got
-      .post(`${config.api_url}/hub/auth/magic`, {
-        headers: {
-          'x-rownd-app-key': config.app_key,
-          'x-rownd-app-secret': config.app_secret,
+    const resp = await request(`${config.api_url}/hub/auth/magic`, {
+      method: 'POST',
+      headers: {
+        'x-rownd-app-key': config.app_key!,
+        'x-rownd-app-secret': config.app_secret!,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        verification_mode: email ? 'email' : 'phone',
+        redirect_url: redirect_url,
+        data: {
+          email,
+          phone,
+          ...data,
         },
-        json: {
-          verification_mode: email ? 'email' : 'phone',
-          redirect_url: redirect_url,
-          data: {
-            email,
-            phone,
-            ...data,
-          },
-        },
-      })
-      .json();
+      }),
+    });
 
     return resp;
   } catch (err) {

@@ -1,9 +1,8 @@
-import * as jose from 'jose';
+import { request } from './fetch';
 import { createConfig } from './config';
 import {
   CLAIM_USER_ID,
   fetchAppConfig,
-  fetchRowndJwks,
   fetchRowndWellKnownConfig,
 } from './core';
 import { createSmartLink } from './smart_links';
@@ -11,137 +10,119 @@ import {
   CreateSmartLinkOpts,
   FetchUserInfoOpts,
   IRowndClient,
-  IRowndExpressClient,
   RowndToken,
   RowndUser,
   TApp,
   TConfig,
 } from '../types';
-import { RowndExpressClient } from '../express';
-import NodeCache from 'node-cache';
-import got from './got';
+import * as jose from 'jose';
 
 export class RowndInstance implements IRowndClient {
-  private cache = new NodeCache({ stdTTL: 3600 });
+  private cache: Record<string, any> = {};
   private config: TConfig;
-
   private initPromise?: Promise<TApp>;
-
   public appConfig: Promise<TApp> | undefined;
-
-  public express: IRowndExpressClient;
 
   constructor(pConfig?: Partial<TConfig>) {
     this.config = createConfig(pConfig);
 
-    this.express = new RowndExpressClient(this);
-
     this.initPromise = fetchAppConfig(this.config.api_url, this.config.app_key!)
-      .then(app => (this.config._app = app))
-      .catch(err => {
+      .then((app) => (this.config._app = app))
+      .catch((err) => {
         throw new Error(`Failed to fetch app config: ${err.message}`);
       });
   }
 
   async validateToken(token: string) {
-    let authConfig = await fetchRowndWellKnownConfig(this.config.api_url);
+    const authConfig = await fetchRowndWellKnownConfig(this.config.api_url);
 
-    let keystore = await fetchRowndJwks(authConfig.jwks_uri);
+    const JWKS = jose.createRemoteJWKSet(new URL(authConfig.jwks_uri));
 
-    let verifyResp = await jose.jwtVerify(token, keystore);
-    const payload = verifyResp.payload as RowndToken;
+    const { payload } = await jose.jwtVerify(token, JWKS);
+    const rowndToken = payload as RowndToken;
 
     return {
-      decoded_token: payload,
-      user_id: payload[CLAIM_USER_ID],
+      decoded_token: rowndToken,
+      user_id: rowndToken[CLAIM_USER_ID],
       access_token: token,
     };
   }
 
   async fetchUserInfo(opts: FetchUserInfoOpts) {
-    // Ensure we have the app config before fetching user info.
     await Promise.race([
-      this.initPromise,
+      this.initPromise!,
       new Promise((_, reject) =>
-        setTimeout(
-          () => reject(new Error('Request timed out')),
-          this.config.timeout
-        )
+        setTimeout(() => reject(new Error('Request timed out')), this.config.timeout)
       ),
     ]);
 
-    let appId = opts?.app_id || this.config._app?.id;
+    const appId = opts?.app_id || this.config._app?.id;
 
     if (!appId) {
       throw new Error('An app_id must be provided');
     }
 
-    let userId = opts.user_id;
-    let headers: Record<string, string> = {};
+    const { user_id: userId } = opts;
 
-    headers['x-rownd-app-key'] = this.config.app_key!;
-    headers['x-rownd-app-secret'] = this.config.app_secret!;
-
-    if (this.cache.has(`user:${userId}`)) {
-      return this.cache.get(`user:${userId}`) as any;
+    if (this.cache[`user:${userId}`]) {
+      return this.cache[`user:${userId}`];
     }
 
-    let resp: Record<string, any> = await got
-      .get(
-        `${this.config.api_url}/applications/${appId}/users/${userId}/data`,
-        {
-          headers,
-        }
-      )
-      .json();
+    const headers: Record<string, string> = {
+      'x-rownd-app-key': this.config.app_key!,
+      'x-rownd-app-secret': this.config.app_secret!,
+    };
 
-    this.cache.set(`user:${userId}`, resp, 300);
+    const resp = await request(
+      `${this.config.api_url}/applications/${appId}/users/${userId}/data`,
+      {
+        headers,
+      }
+    );
 
+    this.cache[`user:${userId}`] = resp;
     return resp;
   }
 
   async createOrUpdateUser(user: RowndUser) {
-    // Ensure we have the app config before fetching user info, but don't wait forever
     await Promise.race([
-      this.initPromise,
+      this.initPromise!,
       new Promise((_, reject) =>
-        setTimeout(
-          () => reject(new Error('Request timed out')),
-          this.config.timeout
-        )
+        setTimeout(() => reject(new Error('Request timed out')), this.config.timeout)
       ),
     ]);
 
-    let resp: RowndUser = await got
-      .put(
-        `${this.config.api_url}/applications/${
-          this.config._app!.id
-        }/users/${user.id || user.data.user_id}/data`,
-        {
-          headers: {
-            'x-rownd-app-key': this.config.app_key,
-            'x-rownd-app-secret': this.config.app_secret,
-            'content-type': 'application/json',
-          },
-          json: {
-            data: user.data,
-          },
-        }
-      )
-      .json();
+    const appId = this.config._app!.id;
+    const userId = user.id;
+
+    const resp = await request(
+      `${this.config.api_url}/applications/${appId}/users/${userId}/data`,
+      {
+        method: 'PUT',
+        headers: {
+          'x-rownd-app-key': this.config.app_key!,
+          'x-rownd-app-secret': this.config.app_secret!,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          data: user.data,
+        }),
+      }
+    );
 
     return resp;
   }
 
-  async deleteUser(userId: String) {
-    await got.delete(
-      `${this.config.api_url}/applications/${
-        this.config._app!.id
-      }/users/${userId}/data`,
+  async deleteUser(userId: string) {
+    const appId = this.config._app!.id;
+
+    await request(
+      `${this.config.api_url}/applications/${appId}/users/${userId}/data`,
       {
+        method: 'DELETE',
         headers: {
-          'x-rownd-app-key': this.config.app_key,
-          'x-rownd-app-secret': this.config.app_secret,
+          'x-rownd-app-key': this.config.app_key!,
+          'x-rownd-app-secret': this.config.app_secret!,
           'content-type': 'application/json',
         },
       }
