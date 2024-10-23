@@ -45,6 +45,8 @@ export async function fetchAppConfig(
   apiUrl: string,
   appKey: string
 ): Promise<TApp> {
+  console.log('Fetching app config with appKey:', appKey);
+
   const resp: TAppResp = await request(`${apiUrl}/hub/app-config`, {
     headers: {
       'x-rownd-app-key': appKey,

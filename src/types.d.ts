@@ -14,7 +14,6 @@ export interface IRowndClient {
   createOrUpdateUser: (user: RowndUser) => Promise<RowndUser>;
   deleteUser: (userId: string) => Promise<void>;
   createSmartLink: (opts: CreateSmartLinkOpts) => Promise<SmartLink>;
-  appConfig: Promise<TApp> | undefined;
 }
 
 type TTokenValidationPayload = {

@@ -20,17 +20,27 @@ import * as jose from 'jose';
 export class RowndInstance implements IRowndClient {
   private cache: Record<string, any> = {};
   private config: TConfig;
-  private initPromise?: Promise<TApp>;
-  public appConfig: Promise<TApp> | undefined;
+  private appConfigPromise?: Promise<TApp>;
 
   constructor(pConfig?: Partial<TConfig>) {
     this.config = createConfig(pConfig);
+  }
 
-    this.initPromise = fetchAppConfig(this.config.api_url, this.config.app_key!)
-      .then((app) => (this.config._app = app))
-      .catch((err) => {
-        throw new Error(`Failed to fetch app config: ${err.message}`);
-      });
+  private async getAppConfig(): Promise<TApp> {
+    if (!this.appConfigPromise) {
+      console.log('App key before fetching app config:', this.config.app_key);
+
+      this.appConfigPromise = fetchAppConfig(this.config.api_url, this.config.app_key!)
+        .then((app) => {
+          this.config._app = app;
+          return app;
+        })
+        .catch((err) => {
+          this.appConfigPromise = undefined; // Reset promise on failure
+          throw new Error(`Failed to fetch app config: ${err.message}`);
+        });
+    }
+    return this.appConfigPromise;
   }
 
   async validateToken(token: string) {
@@ -49,14 +59,8 @@ export class RowndInstance implements IRowndClient {
   }
 
   async fetchUserInfo(opts: FetchUserInfoOpts) {
-    await Promise.race([
-      this.initPromise!,
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Request timed out')), this.config.timeout)
-      ),
-    ]);
-
-    const appId = opts?.app_id || this.config._app?.id;
+    const appConfig = await this.getAppConfig();
+    const appId = appConfig.id;
 
     if (!appId) {
       throw new Error('An app_id must be provided');
@@ -85,14 +89,8 @@ export class RowndInstance implements IRowndClient {
   }
 
   async createOrUpdateUser(user: RowndUser) {
-    await Promise.race([
-      this.initPromise!,
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Request timed out')), this.config.timeout)
-      ),
-    ]);
-
-    const appId = this.config._app!.id;
+    const appConfig = await this.getAppConfig();
+    const appId = appConfig.id;
     const userId = user.id;
 
     const resp = await request(
@@ -114,7 +112,8 @@ export class RowndInstance implements IRowndClient {
   }
 
   async deleteUser(userId: string) {
-    const appId = this.config._app!.id;
+    const appConfig = await this.getAppConfig();
+    const appId = appConfig.id;
 
     await request(
       `${this.config.api_url}/applications/${appId}/users/${userId}/data`,
@@ -131,5 +130,10 @@ export class RowndInstance implements IRowndClient {
 
   async createSmartLink(opts: CreateSmartLinkOpts) {
     return createSmartLink(opts, this.config);
+  }
+
+  // Expose appConfig as a public getter
+  public get appConfig(): Promise<TApp> | undefined {
+    return this.appConfigPromise;
   }
 }

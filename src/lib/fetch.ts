@@ -9,7 +9,7 @@ export async function request(url: string, options: RequestInit = {}) {
     },
   };
 
-  console.debug('request', { url, options: modifiedOptions });
+  console.log('Request options:', modifiedOptions);
 
   try {
     const response = await fetch(url, modifiedOptions);
