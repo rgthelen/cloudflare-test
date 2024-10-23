@@ -1,19 +1,39 @@
-# Rownd Cloudflare SDK
+# Round Cloudflare SDK
 
 Use this library to integrate Rownd into your Cloudflare Workers application. This SDK provides methods to validate Rownd JWT tokens, fetch and manipulate user data, and generate sign-in links, all within a Cloudflare Worker environment.
 
 ## Installation
 
 ```bash
-npm install @rownd/cloudflare
+npm install @roundrobtest/round-cloudflare
 ```
+
+## Configuration
+
+The SDK can be configured using environment variables or directly through the `createInstance` function:
+
+
+- **Environment Variables:**
+  - `ROWND_APP_KEY`: Your Rownd application key.
+  - `ROWND_APP_SECRET`: Your Rownd application secret.
+  - `ROWND_TIMEOUT`: Timeout for API requests in milliseconds (optional).
+
+Set these directly in your `wrangler.toml` file or through the Cloudflare dashboard.
+In your `wrangler.toml` file, you can set these variables like this:
+
+```
+[vars]
+ROWND_APP_KEY = "your-app-key"
+ROWND_APP_SECRET = "your-app-secret"
+```
+Get your Rownd app key and app secret from the [Rownd Dashboard](https://app.rownd.io).
 
 ## Usage
 
 ### Basic Example
 
 ```javascript
-import { createInstance } from '@rownd/cloudflare';
+import { createInstance } from '@roundrobtest/round-cloudflare';
 
 const rownd = createInstance({
   app_key: 'YOUR_ROWND_APP_KEY',
@@ -105,3 +125,14 @@ Creates a magic sign-in link for a user.
     - `data` (Object, optional): Additional user data.
 - **Returns:**
   - A promise that resolves to the smart link object.
+
+### `rownd.appConfig`
+
+Provides access to the application configuration.
+
+- **Returns:**
+  - A promise that resolves to the application configuration object (`TApp`).
+
+## Version
+
+Current SDK version: `0.0.2`

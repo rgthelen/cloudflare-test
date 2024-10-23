@@ -5,4 +5,8 @@ dist
 coverage
 wrangler.toml
 worker.js
+dist
+.wrangler
+.npmignore
+
 
