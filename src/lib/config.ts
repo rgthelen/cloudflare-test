@@ -4,9 +4,10 @@ import { TConfig } from '../types';
 declare const ROWND_APP_KEY: string | undefined;
 declare const ROWND_APP_SECRET: string | undefined;
 declare const ROWND_TIMEOUT: string | undefined;
+declare const ROWND_API_URL: string | undefined;
 
 const defaultConfig: TConfig = {
-  api_url: 'https://api.rownd.io',
+  api_url: typeof ROWND_API_URL !== 'undefined' ? ROWND_API_URL : 'https://api.rownd.io',
   app_key: typeof ROWND_APP_KEY !== 'undefined' ? ROWND_APP_KEY : undefined,
   app_secret: typeof ROWND_APP_SECRET !== 'undefined' ? ROWND_APP_SECRET : undefined,
   timeout: typeof ROWND_TIMEOUT !== 'undefined' ? parseInt(ROWND_TIMEOUT, 10) : 10000,

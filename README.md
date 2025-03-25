@@ -5,7 +5,7 @@ Use this library to integrate Rownd into your Cloudflare Workers application. Th
 ## Installation
 
 ```bash
-npm install @roundrobtest/round-cloudflare
+npm install @roundrobtest/rownd-cloudflare
 ```
 
 ## Configuration
@@ -17,6 +17,7 @@ The SDK can be configured using environment variables or directly through the `c
   - `ROWND_APP_KEY`: Your Rownd application key.
   - `ROWND_APP_SECRET`: Your Rownd application secret.
   - `ROWND_TIMEOUT`: Timeout for API requests in milliseconds (optional).
+  - `ROWND_API_URL`: Custom API URL to use instead of the default `https://api.rownd.io` (optional).
 
 Set these directly in your `wrangler.toml` file or through the Cloudflare dashboard.
 In your `wrangler.toml` file, you can set these variables like this:
@@ -25,6 +26,7 @@ In your `wrangler.toml` file, you can set these variables like this:
 [vars]
 ROWND_APP_KEY = "your-app-key"
 ROWND_APP_SECRET = "your-app-secret"
+ROWND_API_URL = "https://custom-api.rownd.io"
 ```
 Get your Rownd app key and app secret from the [Rownd Dashboard](https://app.rownd.io).
 
@@ -60,6 +62,34 @@ async function handleRequest(request) {
     return new Response(err.message, { status: 401 });
   }
 }
+```
+
+### Custom API URL Example
+
+```javascript
+import { createInstance } from '@roundrobtest/round-cloudflare';
+
+// Create with default API URL (https://api.rownd.io)
+const rownd = createInstance({
+  app_key: 'YOUR_ROWND_APP_KEY',
+  app_secret: 'YOUR_ROWND_APP_SECRET',
+});
+
+// Later, if needed, switch to a different API URL
+rownd.setApiUrl('https://staging-api.rownd.io');
+
+// Now all API calls will use the new base URL
+// Any cached data is cleared, and app configuration will be refetched
+```
+
+You can also specify a custom API URL at initialization:
+
+```javascript
+const rownd = createInstance({
+  api_url: 'https://custom-api.rownd.io',
+  app_key: 'YOUR_ROWND_APP_KEY',
+  app_secret: 'YOUR_ROWND_APP_SECRET',
+});
 ```
 
 ## API Reference
@@ -125,6 +155,16 @@ Creates a magic sign-in link for a user.
     - `data` (Object, optional): Additional user data.
 - **Returns:**
   - A promise that resolves to the smart link object.
+
+### `rownd.setApiUrl(apiUrl)`
+
+Changes the base API URL used by the Rownd client. This is useful for testing or using a different Rownd API environment.
+
+- **Parameters:**
+  - `apiUrl` (string): The new API URL to use.
+- **Note:**
+  - The default API URL is `https://api.rownd.io`.
+  - Calling this method clears any cached data and forces a refetch of application configuration.
 
 ### `rownd.appConfig`
 

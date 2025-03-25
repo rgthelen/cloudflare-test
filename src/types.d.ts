@@ -14,6 +14,7 @@ export interface IRowndClient {
   createOrUpdateUser: (user: RowndUser) => Promise<RowndUser>;
   deleteUser: (userId: string) => Promise<void>;
   createSmartLink: (opts: CreateSmartLinkOpts) => Promise<SmartLink>;
+  setApiUrl: (apiUrl: string) => void;
 }
 
 type TTokenValidationPayload = {

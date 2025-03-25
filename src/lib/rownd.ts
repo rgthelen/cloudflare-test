@@ -132,6 +132,21 @@ export class RowndInstance implements IRowndClient {
     return createSmartLink(opts, this.config);
   }
 
+  /**
+   * Sets a new API URL for the Rownd client
+   * @param apiUrl The new API URL to use
+   */
+  setApiUrl(apiUrl: string): void {
+    // Update the API URL in the config
+    this.config.api_url = apiUrl;
+    
+    // Clear any cached data
+    this.cache = {};
+    
+    // Reset the app config promise so it will be refetched with the new URL
+    this.appConfigPromise = undefined;
+  }
+
   // Expose appConfig as a public getter
   public get appConfig(): Promise<TApp> | undefined {
     return this.appConfigPromise;
